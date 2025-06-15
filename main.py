@@ -15,14 +15,14 @@ DE_BANANA_LETTERS = (
     'S'*7 + 'T'*6 + 'U'*6 + 'V'*1 + 'W'*1 + 'X'*1 + 'Y'*1 + 'Z'*1 + 'Ä'*1 + 'Ö'*1 + 'Ü'*1 + 'ß'*1
 )
 
+
 class MenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation='vertical', spacing=10, padding=40)
+        layout.add_widget(Label(text='Bananagrams\n(Copyright Wilhelm Gr\u00fcndler)', font_size=20))
         layout.add_widget(Button(text='Spiel starten', font_size=32, on_press=self.start_game))
         layout.add_widget(Button(text='Beenden', font_size=32, on_press=App.get_running_app().stop))
-        copyright_label = Label(text='© Wilhelm Gründler', size_hint=(1, 0.1), font_size=14)
-        layout.add_widget(copyright_label)
         self.add_widget(layout)
 
     def start_game(self, instance):
@@ -55,14 +55,10 @@ class GameScreen(Screen):
         self.controls.add_widget(Button(text='Neu starten', on_press=self.confirm_restart))
         self.controls.add_widget(Button(text='Wörter prüfen', on_press=self.check_words))
 
+        self.main_layout.add_widget(Label(text='Copyright Wilhelm Gründler', size_hint=(1, 0.05)))
         self.main_layout.add_widget(self.grid)
         self.main_layout.add_widget(self.controls)
         self.main_layout.add_widget(self.hand_layout)
-        
-        # Copyright Label unten
-        copyright_label = Label(text='© Wilhelm Gründler', size_hint=(1, 0.05), font_size=14)
-        self.main_layout.add_widget(copyright_label)
-        
         self.add_widget(self.main_layout)
 
         self.reset_game()
@@ -74,15 +70,12 @@ class GameScreen(Screen):
         self.hand.clear()
         for _ in range(21):
             self.hand.append(self.letter_pool.pop())
-        self.sort_hand()
         self.update_hand()
         for btn in self.grid_buttons:
             btn.text = ''
 
-    def sort_hand(self):
-        self.hand.sort(key=lambda x: x.lower())
-
     def update_hand(self):
+        self.hand.sort()
         self.hand_layout.clear_widgets()
         self.hand_buttons.clear()
         for l in self.hand:
@@ -93,26 +86,26 @@ class GameScreen(Screen):
 
     def hand_click(self, instance):
         self.selected_letter = instance.text
-        print(f"Ausgewählt: {self.selected_letter}")
 
     def grid_click(self, instance):
         if instance.text != '' and self.selected_letter is None:
             self.hand.append(instance.text)
-            self.sort_hand()
             instance.text = ''
             self.update_hand()
         elif self.selected_letter:
             if instance.text == '':
                 instance.text = self.selected_letter
                 self.hand.remove(self.selected_letter)
-                self.sort_hand()
                 self.selected_letter = None
                 self.update_hand()
 
     def peel(self, instance):
-        if len(self.hand) == 0 and len(self.letter_pool) >= 1:
+        if len(self.hand) > 0:
+            popup = Popup(title='Fehler', content=Label(text='Du musst zuerst alle Buchstaben legen!'), size_hint=(0.8, 0.3))
+            popup.open()
+            return
+        if len(self.letter_pool) >= 1:
             self.hand.append(self.letter_pool.pop())
-            self.sort_hand()
             self.update_hand()
 
     def dump(self, instance):
@@ -122,7 +115,6 @@ class GameScreen(Screen):
             for _ in range(3):
                 if self.letter_pool:
                     self.hand.append(self.letter_pool.pop())
-            self.sort_hand()
             self.selected_letter = None
             self.update_hand()
 
@@ -130,10 +122,10 @@ class GameScreen(Screen):
         content = BoxLayout(orientation='vertical')
         content.add_widget(Label(text='Sicher? Spiel wirklich neu starten?'))
         btns = BoxLayout()
+        popup = Popup(title='Bestätigung', content=content, size_hint=(0.8, 0.4))
         btns.add_widget(Button(text='Ja', on_press=lambda x: self.restart_game(popup)))
         btns.add_widget(Button(text='Nein', on_press=lambda x: popup.dismiss()))
         content.add_widget(btns)
-        popup = Popup(title='Bestätigung', content=content, size_hint=(0.8, 0.4))
         popup.open()
 
     def restart_game(self, popup):
@@ -141,59 +133,72 @@ class GameScreen(Screen):
         self.reset_game()
 
     def check_words(self, instance):
-        if not self.are_letters_connected():
-            popup = Popup(title='Fehler',
-                          content=Label(text='Die Buchstaben müssen zusammenhängen!'),
-                          size_hint=(0.8, 0.4))
+        if not self.is_board_connected():
+            popup = Popup(title='Fehler', content=Label(text='Alle Wörter müssen verbunden sein!'), size_hint=(0.8, 0.3))
             popup.open()
             return
-
         words = self.get_board_words()
         invalid = [w for w in words if not self.is_valid_word(w)]
         text = 'Alle Wörter gültig!' if not invalid else f'Ungültig: {", ".join(invalid)}'
         popup = Popup(title='Wörterprüfung', content=Label(text=text), size_hint=(0.8, 0.4))
         popup.open()
 
-    def are_letters_connected(self):
-        positions = [(i // 15, i % 15) for i, btn in enumerate(self.grid_buttons) if btn.text != '']
-        if not positions:
-            return True  # Keine Buchstaben = triviale Verbindung
-
-        visited = set()
-        stack = [positions[0]]
-
-        while stack:
-            r, c = stack.pop()
-            if (r, c) not in visited:
-                visited.add((r, c))
-                neighbors = [
-                    (r-1, c), (r+1, c),
-                    (r, c-1), (r, c+1)
-                ]
-                for nr, nc in neighbors:
-                    if 0 <= nr < 15 and 0 <= nc < 15:
-                        if (nr, nc) in positions and (nr, nc) not in visited:
-                            stack.append((nr, nc))
-
-        return len(visited) == len(positions)
-
     def get_board_words(self):
         words = set()
         for row in range(15):
-            line = ''.join(self.grid_buttons[row * 15 + col].text for col in range(15))
-            words.update([w for w in line.strip().split() if len(w) > 1])
+            line = ''.join(self.grid_buttons[row * 15 + col].text or ' ' for col in range(15))
+            words.update([w for w in line.split() if len(w) > 1])
         for col in range(15):
-            line = ''.join(self.grid_buttons[row * 15 + col].text for row in range(15))
-            words.update([w for w in line.strip().split() if len(w) > 1])
+            line = ''.join(self.grid_buttons[row * 15 + col].text or ' ' for row in range(15))
+            words.update([w for w in line.split() if len(w) > 1])
         return list(words)
 
     def is_valid_word(self, word):
         try:
-            url = f"https://de.wiktionary.org/wiki/{word.lower()}"
-            r = requests.get(url, timeout=5)
-            return r.status_code == 200
+            url = "https://de.wiktionary.org/w/api.php"
+            params = {
+                "action": "query",
+                "titles": word.lower(),
+                "format": "json"
+            }
+            r = requests.get(url, params=params, timeout=5)
+            pages = r.json().get("query", {}).get("pages", {})
+            return "-1" not in pages
         except:
             return False
+
+    def is_board_connected(self):
+        visited = set()
+
+        def get_neighbors(x, y):
+            for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < 15 and 0 <= ny < 15:
+                    yield nx, ny
+
+        def dfs(x, y):
+            stack = [(x, y)]
+            while stack:
+                cx, cy = stack.pop()
+                if (cx, cy) in visited:
+                    continue
+                visited.add((cx, cy))
+                for nx, ny in get_neighbors(cx, cy):
+                    btn = self.grid_buttons[ny * 15 + nx]
+                    if btn.text and (nx, ny) not in visited:
+                        stack.append((nx, ny))
+
+        for y in range(15):
+            for x in range(15):
+                if self.grid_buttons[y * 15 + x].text:
+                    dfs(x, y)
+                    break
+            else:
+                continue
+            break
+
+        total_letters = sum(1 for btn in self.grid_buttons if btn.text)
+        return len(visited) == total_letters
 
 
 class BananagramsApp(App):
