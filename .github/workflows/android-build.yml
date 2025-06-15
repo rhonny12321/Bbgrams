@@ -13,14 +13,17 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build with Buildozer
       uses: ArtemSBulgakov/buildozer-action@v1
       id: buildozer
       with:
-        workdir: '.'             # Hier liegt die buildozer.spec
+        workdir: '.'             
         buildozer_version: stable
         command: buildozer android debug
+        cache: false
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
