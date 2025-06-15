@@ -11,10 +11,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Show git config (vor Checkout)
+      run: git config --list
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Show git config (nach Checkout)
+      run: git config --list
 
     - name: Build with Buildozer
       uses: ArtemSBulgakov/buildozer-action@v1
@@ -23,7 +30,6 @@ jobs:
         workdir: '.'             
         buildozer_version: stable
         command: buildozer android debug
-        cache: false
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
