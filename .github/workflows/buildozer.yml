@@ -1,0 +1,46 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+      - name: Cache Buildozer Android platform & builds
+        uses: actions/cache@v3
+        with:
+          path: |
+            .buildozer/android/platform
+            .buildozer/android/platform/build-arm64-v8a_armeabi-v7a
+            .buildozer/android/platform/python-for-android
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('**/*.spec') }}
+
+      - name: Install dependencies for buildozer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip git zip unzip openjdk-8-jdk
+          pip3 install --upgrade cython buildozer
+
+      - name: Build APK with Buildozer
+        run: |
+          buildozer -v android debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bbgrams-apk
+          path: ./.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/build/outputs/apk/debug/*.apk
