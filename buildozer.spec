@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = Bananagrams
+title = Bbgrams
 
 # (str) Package name
-package.name = Bananagrams
+package.name = bbgrams
 
 # (str) Package domain (unique, like a reverse DNS domain)
 package.domain = org.example
